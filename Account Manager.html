@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — User Dashboard</title>
+  <link rel="stylesheet" href="Style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="avatar">JW</div>
+        <div class="brand-text">
+          <div class="name">JangWeon</div>
+          <div class="role">Admin</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <div class="nav-title">Navigation</div>
+        <ul>
+          <li class="nav-item active">
+            <a href="#"><span class="dot"></span> User Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a href="#"><span class="dot muted"></span> Admin Dashboard</a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main area -->
+    <main class="main">
+      <header class="header-spacer"></header>
+
+      <section class="content">
+        <div class="card">
+          <div class="card-header">
+            <h1>User Managements</h1>
+            <!-- id 추가: openModalBtn -->
+            <a id="openModalBtn" class="create-link" href="#">Create User</a>
+          </div>
+
+          <div class="table-wrap">
+            <table class="user-table" id="userTable">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>PASSWORD</th>
+                  <th>HWID</th>
+                  <th>BAN</th>
+                  <th>EXPIRATION DATE</th>
+                  <th>ACCOUNT MADE BY</th>
+                  <th>DELETE USER</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- 빈 테이블 상태(스크린샷과 동일) -->
+                <tr class="empty">
+                  <td colspan="7"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <footer class="site-footer">
+          Copyright © JangWeon 2025
+        </footer>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal (이미 styles.css에 스타일 있음) -->
+  <div class="modal" id="modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-content" role="document">
+      <h2>Create User</h2>
+
+      <label for="inputID">ID</label>
+      <input type="text" id="inputID" placeholder="Enter user ID" />
+
+      <label for="inputPW">PASSWORD</label>
+      <input type="password" id="inputPW" placeholder="Enter password" />
+
+      <label for="inputEXP">EXPIRATION DATE</label>
+      <input type="date" id="inputEXP" />
+
+      <div class="modal-btns">
+        <button id="closeModalBtn" class="btn cancel" type="button">Cancel</button>
+        <button id="createBtn" class="btn create" type="button">Create</button>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+    const SUPABASE_URL = "https://slvkbnyofzmpxngaguir.supabase.co";   
+    const SUPABASE_ANON_KEY = "sb_publishable_ofHe_lggfNjTUoQ2eYxYzA_SuwHLJR8";
+    
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const openModalBtn = document.getElementById('openModalBtn');
+    const modal = document.getElementById('modal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const createBtn = document.getElementById('createBtn');
+
+    const inputID = document.getElementById('inputID');
+    const inputPW = document.getElementById('inputPW');
+    const inputEXP = document.getElementById('inputEXP');
+
+    const userTable = document.getElementById('userTable').querySelector('tbody');
+
+    function showModal() {
+      modal.classList.add('show');
+      modal.setAttribute('aria-hidden', 'false');
+      setTimeout(() => inputID.focus(), 100);
+    }
+
+    function hideModal() {
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+      clearInputs();
+    }
+
+    function clearInputs() {
+      inputID.value = '';
+      inputPW.value = '';
+      inputEXP.value = '';
+    }
+
+    function validateInputs() {
+      const id = inputID.value.trim();
+      const pw = inputPW.value;
+      
+      if (!id) {
+        alert('ID를 입력하세요.');
+        inputID.focus();
+        return false;
+      }
+
+      if (!pw) {
+        alert('Password를 입력하세요');
+        inputPW.focus();
+        return false;
+      }
+
+      return true;
+    }
+
+    function restoreEmptyRowIfNeeded() {
+      if (userTable.children.length === 0) {
+        const r = document.createElement('tr');
+        r.className = 'empty';
+        const c = document.createElement('td');
+        c.colSpan = 7;
+        r.appendChild(c);
+        userTable.appendChild(r);
+      }
+    }
+
+    function addUserRow(rowId, id, pw, exp) {
+      const emptyRow = userTable.querySelector('tr.empty');
+      if (emptyRow) emptyRow.remove();
+
+      const tr = document.createElement('tr');
+      if (rowId) {
+        tr.dataset.rowId = rowId;
+      }
+
+      const tdID = document.createElement('td');
+      tdID.textContent = id;
+      tr.appendChild(tdID);
+
+      const tdPW = document.createElement('td');
+      const masked = '•'.repeat(Math.max(6, pw.length)); 
+      tdPW.textContent = masked;
+      tdPW.title = 'Password is hidden';
+      tr.appendChild(tdPW);
+
+      const tdHWID = document.createElement('td');
+      tdHWID.textContent = '—';
+      tr.appendChild(tdHWID);
+
+      const tdBan = document.createElement('td');
+
+      const label = document.createElement('label');
+      label.className = 'switch';
+
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.checked = false;
+
+      const slider = document.createElement('span');
+      slider.className = 'slider';
+
+      label.appendChild(chk);
+      label.appendChild(slider);
+      tdBan.appendChild(label);
+      tr.appendChild(tdBan);
+
+      const tdExp = document.createElement('td');
+      tdExp.textContent = exp || '—';
+      tr.appendChild(tdExp);
+
+      const tdMade = document.createElement('td');
+      tdMade.textContent = 'Admin';
+      tr.appendChild(tdMade);
+
+      const tdDel = document.createElement('td');
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'Delete';
+      delBtn.className = 'btn cancel';
+      delBtn.type = 'button';
+
+      delBtn.addEventListener('click', async () => {
+        const rid = tr.dataset.rowId;
+
+        if (rid) {
+          const { error } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', rid);
+
+          if (error) {
+            console.error(error);
+            alert('Supabase 삭제 중 오류가 발생했습니다.');
+            return;
+          }
+        }
+
+        tr.remove();
+        restoreEmptyRowIfNeeded();
+      });
+
+      chk.addEventListener('change', async () => {
+        const rid = tr.dataset.rowId;
+        const newValue = true;
+
+        const { error } = await supabase
+          .from('users')
+          .update({ ban: newValue })
+          .eq('user_id', rid);
+
+        if (error) {
+          console.error(error);
+          alert("BAN 변경 오류!");
+          chk.checked = !newValue;
+        }
+      });
+
+      tdDel.appendChild(delBtn);
+      tr.appendChild(tdDel);
+
+      userTable.appendChild(tr);
+    }
+
+    async function loadUsers() {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      if (!data || data.length === 0) return;
+
+      userTable.innerHTML = '';
+      data.forEach(row => {
+        addUserRow(
+          row.id,             
+          row.user_id || '',
+          row.password || '',
+          row.expiration || ''
+        );
+      });
+    }
+
+    await loadUsers();
+
+    openModalBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      showModal();
+    });
+
+    closeModalBtn.addEventListener('click', () => {
+      hideModal();
+    });
+
+    modal.addEventListener('click', (ev) => {
+      if (ev.target === modal) hideModal();
+    });
+
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && modal.classList.contains('show')) hideModal();
+    });
+
+    createBtn.addEventListener('click', async () => {
+      if (!validateInputs()) return;
+
+      const id = inputID.value.trim();
+      const pw = inputPW.value;
+      const exp = inputEXP.value;
+
+      const { data, error } = await supabase
+        .from('users')
+        .insert([
+          {
+            user_id: id,
+            password: pw,
+            hwid: '—',
+            ban: false,
+            expiration: exp,
+            made_by: 'Admin'
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error(error);
+        alert('Supabase 저장 중 오류가 발생했습니다');
+        return;
+      }
+
+      addUserRow(data.id, data.user_id, data.password, data.expiration);
+
+      hideModal();
+    });
+  });
+  </script>
+</body>
+</html>
